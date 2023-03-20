@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"math/rand"
 	"time"
 
@@ -38,6 +39,8 @@ type playerState struct {
 	ticksSinceIter int
 	piecesDropped  int
 	currentAction  PlayerAction
+	level          int
+	ready          bool
 }
 
 type matchDriver struct {
@@ -56,35 +59,104 @@ type playerFinish struct {
 func NewMatchDriver() *matchDriver {
 	md := &matchDriver{}
 	md.matchRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+	md.playerStates = make([]*playerState, 0)
+
 	return md
 }
 
-func (md *matchDriver) StartMatch(numPlayers int) {
-	// match already started
-	if md.matchStarted {
+func (md *matchDriver) AddPlayer() {
+	newPlayerState := &playerState{}
+	newPlayerState.level = 10
+
+	md.playerStates = append(md.playerStates, newPlayerState)
+}
+
+func (md *matchDriver) ChangeLevel(playerIndex int, changeAmount int) error {
+	if playerIndex < 0 || playerIndex >= len(md.playerStates) {
+		return errors.New("playerindex not in range")
+	}
+
+	md.playerStates[playerIndex].level += changeAmount
+
+	// put level between 0 and 20 inclusive
+	if md.playerStates[playerIndex].level < 0 {
+		md.playerStates[playerIndex].level = 0
+	}
+
+	if md.playerStates[playerIndex].level > 20 {
+		md.playerStates[playerIndex].level = 20
+	}
+
+	return nil
+}
+
+func (md *matchDriver) GetLevel(playerIndex int) (int, error) {
+	if playerIndex < 0 || playerIndex >= len(md.playerStates) {
+		return 0, errors.New("playerindex not in range")
+	}
+
+	return md.playerStates[playerIndex].level, nil
+}
+
+func (md *matchDriver) SetPlayerReady(playerIndex int, ready bool) error {
+	if playerIndex < 0 || playerIndex >= len(md.playerStates) {
+		return errors.New("playerindex not in range")
+	}
+
+	md.playerStates[playerIndex].ready = ready
+
+	return nil
+}
+
+func (md *matchDriver) GetPlayerReady(playerIndex int) (bool, error) {
+	if playerIndex < 0 || playerIndex >= len(md.playerStates) {
+		return false, errors.New("playerindex not in range")
+	}
+
+	return md.playerStates[playerIndex].ready, nil
+}
+
+func (md *matchDriver) GetViriiRemaining(playerIndex int) (int, error) {
+	if playerIndex < 0 || playerIndex >= len(md.playerStates) {
+		return 0, errors.New("playerindex not in range")
+	}
+
+	viriiRemaining := 0
+
+	// scan through cols for 3 same color in a row
+	playfield := md.GetPlayfield(playerIndex)
+	for col := 0; col < playfield.GetWidth(); col++ {
+		for row := 0; row < playfield.GetHeight(); row++ {
+			space, _ := playfield.GetSpaceAtCoordinate(row, col)
+			if space.Content == drbreakboard.Virus {
+				viriiRemaining++
+			}
+		}
+	}
+
+	return viriiRemaining, nil
+}
+
+func (md *matchDriver) StartMatch() {
+	if md.matchStarted && !md.matchEnded {
+		// match already started or has not ended, return
 		return
 	}
 
-	// match ended, use reset
-	if md.matchEnded {
-		return
-	}
-
-	md.playerStates = make([]*playerState, numPlayers)
 	md.playerFinishes = make([]playerFinish, 0)
+
+	// pick the seed for the match to sync random number generators
+	// ensures same board, pills, etc.
 	matchSeed := md.matchRand.Int63()
 
-	for i := range md.playerStates {
+	// set up each playerstate for a new match
+	for _, playerState := range md.playerStates {
 		// initialize player board
-		playerState := &playerState{}
 		playerState.playfield = drbreakboard.NewPlayField(8, 16)
-		populateBoardViruses(playerState.playfield, 10, matchSeed)
+		populateBoardViruses(playerState.playfield, playerState.level, matchSeed)
 
 		playerState.pillRand = rand.New(rand.NewSource(matchSeed))
 		playerState.nextPill[0], playerState.nextPill[1] = generatePill(playerState.pillRand)
-
-		// assign the player state
-		md.playerStates[i] = playerState
 	}
 
 	md.matchStarted = true
@@ -464,6 +536,10 @@ func (md *matchDriver) GetPlayfield(playerIndex int) *drbreakboard.PlayField {
 
 func (md *matchDriver) GetActivePill(playerIndex int) [2]drbreakboard.Space {
 	return md.playerStates[playerIndex].activePill
+}
+
+func (md *matchDriver) GetNextPill(playerIndex int) [2]drbreakboard.Space {
+	return md.playerStates[playerIndex].nextPill
 }
 
 func (md *matchDriver) GetActivePillLocation(playerIndex int) [2]int {

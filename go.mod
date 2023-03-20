@@ -11,15 +11,16 @@ require (
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
+	golang.org/x/text v0.8.0 // indirect
 )
 
 require (
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20220806181222-55e207c401ad // indirect
 	github.com/hajimehoshi/ebiten/v2 v2.4.18
 	golang.org/x/exp v0.0.0-20190731235908-ec7cb31e5a56 // indirect
-	golang.org/x/image v0.1.0 // indirect
+	golang.org/x/image v0.6.0 // indirect
 	golang.org/x/mobile v0.0.0-20220722155234-aaac322e2105 // indirect
-	golang.org/x/sys v0.0.0-20220818161305-2296e01440c6 // indirect
+	golang.org/x/sys v0.5.0 // indirect
 )
 
 replace example.com/drbreakboard => ../drbreakboard
