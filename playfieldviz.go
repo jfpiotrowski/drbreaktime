@@ -85,6 +85,54 @@ func (viz *playfieldViz) DrawWaitingPlayerToImage(image *ebiten.Image, playerLev
 	}
 }
 
+func (viz *playfieldViz) DrawResultToImage(image *ebiten.Image, isMatchWinner bool, isBigWinner bool) {
+	// draw left border
+	geom := ebiten.GeoM{}
+	geom.Scale(float64(viz.xBuffer), float64(viz.yPixelSize))
+	geom.Translate(float64(viz.xOffset), float64(viz.yOffset))
+	pxImage := viz.imageMap["greenPixel"]
+	newImg := ebiten.NewImageFromImage(pxImage)
+	image.DrawImage(newImg, &ebiten.DrawImageOptions{GeoM: geom})
+
+	// draw right border
+	geom = ebiten.GeoM{}
+	geom.Scale(float64(viz.xBuffer), float64(viz.yPixelSize))
+	geom.Translate(float64(viz.xOffset+viz.xBuffer+viz.xPixelSize), float64(viz.yOffset))
+	image.DrawImage(newImg, &ebiten.DrawImageOptions{GeoM: geom})
+
+	if isBigWinner {
+		text.Draw(image, "Champ!", viz.fontMap["base"], viz.xOffset+viz.xBuffer, viz.yOffset+viz.yPixelSize/3,
+			color.RGBA{128, 128, 128, 255})
+	} else if isMatchWinner {
+		text.Draw(image, "Winner!", viz.fontMap["base"], viz.xOffset+viz.xBuffer, viz.yOffset+viz.yPixelSize/3,
+			color.RGBA{128, 128, 128, 255})
+	} else {
+		text.Draw(image, "Better\nLuck\nNext\nTime!", viz.fontMap["base"], viz.xOffset+viz.xBuffer, viz.yOffset+viz.yPixelSize/3,
+			color.RGBA{128, 128, 128, 255})
+	}
+}
+
+func (viz *playfieldViz) DrawPausedToImage(image *ebiten.Image, isPauser bool) {
+	// draw left border
+	geom := ebiten.GeoM{}
+	geom.Scale(float64(viz.xBuffer), float64(viz.yPixelSize))
+	geom.Translate(float64(viz.xOffset), float64(viz.yOffset))
+	pxImage := viz.imageMap["greenPixel"]
+	newImg := ebiten.NewImageFromImage(pxImage)
+	image.DrawImage(newImg, &ebiten.DrawImageOptions{GeoM: geom})
+
+	// draw right border
+	geom = ebiten.GeoM{}
+	geom.Scale(float64(viz.xBuffer), float64(viz.yPixelSize))
+	geom.Translate(float64(viz.xOffset+viz.xBuffer+viz.xPixelSize), float64(viz.yOffset))
+	image.DrawImage(newImg, &ebiten.DrawImageOptions{GeoM: geom})
+
+	if isPauser {
+		text.Draw(image, "Paused", viz.fontMap["base"], viz.xOffset+viz.xBuffer, viz.yOffset+viz.yPixelSize/3,
+			color.RGBA{128, 128, 128, 255})
+	}
+}
+
 func (viz *playfieldViz) DrawBoardToImage(image *ebiten.Image) {
 	// no field means nothing to draw, just return
 	if viz.fieldState == nil {
@@ -181,7 +229,7 @@ func drawPillSpace(space playfieldState, xBlockPx float64, yBlockPx float64, x i
 }
 
 func (viz *playfieldViz) DrawStatusToImage(image *ebiten.Image, virusCount int,
-	nextPill [2]drbreakboard.Space) {
+	nextPill [2]drbreakboard.Space, hasDrops bool) {
 	virusesBoundRect := text.BoundString(viz.fontMap["base"], fmt.Sprintf("Viruses: %d", virusCount))
 	firstWordY := virusesBoundRect.Dy()
 
@@ -211,6 +259,13 @@ func (viz *playfieldViz) DrawStatusToImage(image *ebiten.Image, virusCount int,
 	// draw next
 	drawPillSpace(viz.nextPillState[0], 20, 20, nextX+nextBoundRect.Dx(), nextY-nextBoundRect.Dy(), image)
 	drawPillSpace(viz.nextPillState[1], 20, 20, nextX+nextBoundRect.Dx()+20, nextY-nextBoundRect.Dy()-1, image)
+
+	// draw drop warning if needed
+	if hasDrops {
+		text.Draw(image, "DROPSICLE!", viz.fontMap["base"],
+			viz.xOffset+viz.xBuffer, nextY+30,
+			color.RGBA{255, 128, 128, 255})
+	}
 }
 
 func (viz *playfieldViz) UpdateBoard(playfield *drbreakboard.PlayField,

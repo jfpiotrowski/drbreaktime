@@ -49,6 +49,7 @@ const (
 	Title GameStage = iota
 	PlayerAssignment
 	MatchRunning
+	MatchPaused
 	MatchEnded
 )
 
@@ -83,6 +84,7 @@ type Game struct {
 	currentStage          GameStage
 	playerCount           int
 	lastButtonPresses     map[int][]GamepadEvent
+	pausePlayerIndex      int
 }
 
 func NewGame() (*Game, error) {
@@ -104,18 +106,29 @@ func NewGame() (*Game, error) {
 	loadImageAndAddToImageMap(game.imageMap, "./img/blueLinked.png", "blueLinked")
 	loadImageAndAddToImageMap(game.imageMap, "./img/greenPixel.png", "greenPixel")
 
-	game.playfieldViz = make([]*playfieldViz, 0)
-	// game.playfieldViz.SetPixelSize(160, 480)
-
-	game.matchDriver = NewMatchDriver()
-
 	game.inputDriver = NewInputDriver()
 
-	game.controllerAssignments = map[int]int{}
-
-	game.currentStage = Title
+	game.ResetGame()
 
 	return game, nil
+}
+
+// set game variables to base state with no players or anything
+func (g *Game) ResetGame() {
+	g.playfieldViz = make([]*playfieldViz, 0)
+
+	g.matchDriver = NewMatchDriver()
+
+	g.controllerAssignments = map[int]int{}
+
+	g.currentStage = Title
+
+	g.playerCount = 0
+
+	g.lastButtonPresses = map[int][]GamepadEvent{}
+
+	g.pausePlayerIndex = 0
+
 }
 
 // Update proceeds the game state.
@@ -145,19 +158,21 @@ func (g *Game) Update() error {
 		if !g.matchDriver.matchStarted {
 			g.matchDriver.StartMatch()
 		} else if !g.matchDriver.matchEnded {
-			playerIndexInputs := map[int][]GamepadEvent{}
 			// all players should have an input device before game start
-			for playerIndex := range g.controllerAssignments {
-				controllerId := g.controllerAssignments[playerIndex]
-				controllerEvent, exists := buttonPressEvents[controllerId]
+			// put the controller event array into the player indexed event map
+			playerIndexInputs := g.getPlayerButtonPresses(buttonPressEvents)
 
-				// put the controller event array into the player indexed event map
-				if exists {
-					playerIndexInputs[playerIndex] = controllerEvent
+			// check for pause button press before applying update
+			for playerIndex := 0; playerIndex < g.playerCount; playerIndex += 1 {
+				controllerEvent, exists := playerIndexInputs[playerIndex]
+
+				if exists && checkControllerEventsForEvent(controllerEvent, StartJustPressed) {
+					// player paused the game
+					g.currentStage = MatchPaused
+					g.pausePlayerIndex = playerIndex
+					return nil
 				}
 			}
-
-			// TODO: check for pause button press before applying update
 
 			// apply rotations based on button presses
 			g.matchDriver.ApplyInputs(playerIndexInputs)
@@ -168,10 +183,72 @@ func (g *Game) Update() error {
 				g.playfieldViz[i].UpdateBoard(g.matchDriver.GetPlayfield(i),
 					g.matchDriver.GetActivePill(i), g.matchDriver.GetActivePillLocation(i))
 			}
+
+			if g.matchDriver.matchEnded {
+				g.currentStage = MatchEnded
+			}
+		}
+	case MatchPaused:
+		// all players should have an input device before game start
+		// put the controller event array into the player indexed event map
+		playerIndexInputs := g.getPlayerButtonPresses(buttonPressEvents)
+
+		// check for pause button press for unpause
+		pausePlayerEvents, exists := playerIndexInputs[g.pausePlayerIndex]
+		if exists && checkControllerEventsForEvent(pausePlayerEvents, StartJustPressed) {
+			// player unpaused, restart the game
+			g.currentStage = MatchRunning
+			return nil
+		} else if exists && checkControllerEventsForEvent(pausePlayerEvents, SelectJustPressed) {
+			g.ResetGame()
+		}
+	case MatchEnded:
+		// pick up start button and run a new match
+		for k := range buttonPressEvents {
+			events := buttonPressEvents[k]
+			for _, event := range events {
+				if event == StartJustPressed {
+					// start the match again
+					g.matchDriver.ResetAndStartMatch()
+					g.currentStage = MatchRunning
+					return nil
+				} else if event == SelectJustPressed {
+					// reset the whole game
+					g.ResetGame()
+					return nil
+				}
+			}
 		}
 	}
 
 	return nil
+}
+
+func checkControllerEventsForEvent(controllerEvent []GamepadEvent, targetEvent GamepadEvent) bool {
+	if controllerEvent == nil {
+		return false
+	}
+
+	for _, event := range controllerEvent {
+		if event == targetEvent {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (g *Game) getPlayerButtonPresses(buttonPressEvents map[int][]GamepadEvent) map[int][]GamepadEvent {
+	playerIndexInputs := map[int][]GamepadEvent{}
+	for playerIndex := range g.controllerAssignments {
+		controllerId := g.controllerAssignments[playerIndex]
+		controllerEvent, exists := buttonPressEvents[controllerId]
+
+		if exists {
+			playerIndexInputs[playerIndex] = controllerEvent
+		}
+	}
+	return playerIndexInputs
 }
 
 func (g *Game) updateReadyForPlayers(buttonPressEvents map[int][]GamepadEvent) {
@@ -227,6 +304,9 @@ func (g *Game) updateReadyForPlayers(buttonPressEvents map[int][]GamepadEvent) {
 				_ = g.matchDriver.SetPlayerReady(playerIndex, true)
 			} else if event == SecondaryJustPressed {
 				_ = g.matchDriver.SetPlayerReady(playerIndex, false)
+			} else if event == SelectJustPressed {
+				g.ResetGame()
+				return
 			}
 		}
 	}
@@ -275,7 +355,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			viz.DrawBoardToImage(screen)
 
 			numVirii, _ := g.matchDriver.GetViriiRemaining(playerIndex)
-			viz.DrawStatusToImage(screen, numVirii, g.matchDriver.GetNextPill(playerIndex))
+			dropInbound, _ := g.matchDriver.GetIsDropInbound(playerIndex)
+			viz.DrawStatusToImage(screen, numVirii, g.matchDriver.GetNextPill(playerIndex),
+				dropInbound)
+		}
+	case MatchPaused:
+		for playerIndex, pv := range g.playfieldViz {
+			pv.DrawPausedToImage(screen, g.pausePlayerIndex == playerIndex)
+		}
+	case MatchEnded:
+		for playerIndex, pv := range g.playfieldViz {
+			matchWinner := playerIndex == g.matchDriver.winner
+			pv.DrawResultToImage(screen, matchWinner, false)
 		}
 	}
 

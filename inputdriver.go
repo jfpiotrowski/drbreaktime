@@ -15,6 +15,7 @@ const (
 	PrimaryJustPressed
 	SecondaryJustPressed
 	StartJustPressed
+	SelectJustPressed
 	LeftPressed
 	RightPressed
 	DownPressed
@@ -77,6 +78,8 @@ func (driver *inputDriver) UpdateStateAndReturnPresses() (map[int]GamepadEvent, 
 					buttonEventList = append(buttonEventList, PrimaryJustPressed)
 				} else if b == 1 || b == 2 {
 					buttonEventList = append(buttonEventList, SecondaryJustPressed)
+				} else if b == 6 {
+					buttonEventList = append(buttonEventList, SelectJustPressed)
 				} else if b == 7 {
 					buttonEventList = append(buttonEventList, StartJustPressed)
 				} else if b == 13 {
