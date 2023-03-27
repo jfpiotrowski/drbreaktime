@@ -12,8 +12,8 @@ To run the game, do the following:
 
 * at the title screen, press start
 * at the blank screen, press start to get a slot
-** Press up/down to change level and A to select the level
-** Up to 4 can play right now
+    * Press up/down to change level and A to select the level
+    * Up to 4 can play right now
 
 To play the game, use A/X to rotate and the D-pad to move the piece. Down moves it down. Holding left/right is not implemented yet, you have to use discrete pushes. Clear the virii.
 
