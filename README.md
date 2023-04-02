@@ -19,6 +19,16 @@ To play the game, use A/X to rotate and the D-pad to move the piece. Down moves 
 
 At the end screen, press start to start a new game or select to return to title. That's it.
 
+### Keyboard Support
+
+Keyboard support is added
+
+* arrow keys for left/right/up/down
+* f is primary button
+* d is secondary
+* r is start for menus, pausing
+* e is select for returning to title screen and only returning to the title screen
+
 Stuff to add:
 * Resizing
 * Sounds
