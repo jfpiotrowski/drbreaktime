@@ -11,7 +11,8 @@ import (
 // ticks by 10 pieces dropped at 30fps
 var medTicksPerIter = [...]int{20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2}
 
-const fallTick = 7 // fall rate frames at 30 fps
+const fallTick = 7           // fall rate frames at 30 fps
+const leftRightHoldTick = 10 // ticks to wait at 60 fps for left or right hold moves
 
 const boardWidth = 8
 const boardHeight = 16
@@ -61,6 +62,9 @@ type playerState struct {
 	// drops from other players to be dropped on this player
 	// 2D so that multiple drops are stored
 	storedGarbageDrops [][]drbreakboard.SpaceColor
+
+	// ticks since side button held move
+	sideMoveTicks int
 }
 
 type matchDriver struct {
@@ -220,6 +224,8 @@ func (md *matchDriver) ApplyInputs(playerInputs map[int][]GamepadEvent) {
 	for index, ps := range md.playerStates {
 		if ps.currentAction != PlacingPill {
 			// if not placing pill, input means nothing
+			// reset side move ticks
+			ps.sideMoveTicks = 0
 			continue
 		}
 
@@ -240,6 +246,33 @@ func (md *matchDriver) ApplyInputs(playerInputs map[int][]GamepadEvent) {
 			case SecondaryJustPressed:
 				md.rotateIfPossible(index, ps, false)
 			}
+		}
+
+		// check whether side move direction is held
+		// move if held for number of ticks
+		sideMoveHeld := false
+		for _, input := range playerInput {
+			switch input {
+			case LeftPressed:
+				sideMoveHeld = true
+				ps.sideMoveTicks += 1
+				if ps.sideMoveTicks == leftRightHoldTick {
+					md.moveLeftIfPossible(index, ps)
+					ps.sideMoveTicks = 0
+				}
+			case RightPressed:
+				sideMoveHeld = true
+				ps.sideMoveTicks += 1
+				if ps.sideMoveTicks == leftRightHoldTick {
+					md.moveRightIfPossible(index, ps)
+					ps.sideMoveTicks = 0
+				}
+			}
+		}
+
+		// no side move, set side move ticks to zero
+		if !sideMoveHeld {
+			ps.sideMoveTicks = 0
 		}
 	}
 }
@@ -367,6 +400,9 @@ func (md *matchDriver) rotateVertToHor(index int, ps *playerState, clockwise boo
 }
 
 func (md *matchDriver) moveLeftIfPossible(index int, ps *playerState) {
+	// reset side move ticks for held moves
+	ps.sideMoveTicks = 0
+
 	leftOfPiece, err := md.GetPlayfield(index).GetSpaceAtCoordinate(ps.pillPosition[0], ps.pillPosition[1]-1)
 
 	// out of bounds
@@ -396,6 +432,8 @@ func (md *matchDriver) moveLeftIfPossible(index int, ps *playerState) {
 }
 
 func (md *matchDriver) moveRightIfPossible(index int, ps *playerState) {
+	// reset side move ticks for held moves
+	ps.sideMoveTicks = 0
 
 	// same check for piece above if piece oriented vertically
 	// represented with an up linkage on the primary space
