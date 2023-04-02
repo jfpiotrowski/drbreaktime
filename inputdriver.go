@@ -26,13 +26,15 @@ const (
 )
 
 type inputDriver struct {
-	gamepadIDsBuf []ebiten.GamepadID
-	gamepadIDs    map[ebiten.GamepadID]struct{}
+	gamepadIDsBuf  []ebiten.GamepadID
+	gamepadIDs     map[ebiten.GamepadID]struct{}
+	keyboardDriver *keyboardDriver
 }
 
 func NewInputDriver() *inputDriver {
 	id := &inputDriver{}
 	id.gamepadIDs = map[ebiten.GamepadID]struct{}{}
+	id.keyboardDriver = NewKeyboardDriver()
 	return id
 }
 
@@ -107,6 +109,11 @@ func (driver *inputDriver) UpdateStateAndReturnPresses() (map[int]GamepadEvent, 
 
 		buttonEvents[int(id)] = buttonEventList
 	}
+
+	// get kbevents and create a fake controller to carry keyboard input
+	// TODO: add connect on first keypress later
+	kbEvents := driver.keyboardDriver.GetKeyboardAsGamepadEvents()
+	buttonEvents[21985] = kbEvents
 
 	return connectionChanges, buttonEvents
 }
